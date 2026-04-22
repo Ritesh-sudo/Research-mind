@@ -1,36 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ResearchMind AI
 
-## Getting Started
+Production-grade AI research platform with RAG, multi-provider AI, live LaTeX editor, and PDF compilation.
 
-First, run the development server:
+## Stack
+- **Next.js 16** (App Router, Turbopack), TypeScript, Tailwind CSS
+- **RAG**: pgvector + nomic-embed-text (Ollama) or text-embedding-3-small (OpenAI)
+- **AI**: Ollama/Qwen (dev), Claude/Gemini/Groq (prod) — swappable via env var
+- **DB**: PostgreSQL + pgvector via Prisma 7 + PrismaPg adapter
+- **Editor**: Monaco Editor + server-side pdflatex
+- **State**: Zustand, **Jobs**: Redis + BullMQ
+- **Auth**: NextAuth.js (Google + GitHub)
 
+## Quick Start (Local Dev)
+
+### 1. Prerequisites
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Start PostgreSQL with pgvector
+docker run -d --name pgvector -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 pgvector/pgvector:pg16
+
+# Start Redis
+docker run -d --name redis -p 6379:6379 redis:7-alpine
+
+# Install and start Ollama
+brew install ollama && ollama serve
+
+# Pull models
+ollama pull qwen2.5:14b      # AI model (use qwen2.5:7b for 8GB RAM)
+ollama pull nomic-embed-text  # Embedding model for RAG
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Database Setup
+```bash
+# Create database and enable pgvector
+psql -U postgres -h localhost -c "CREATE DATABASE researchmind;"
+psql -U postgres -h localhost -d researchmind -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# Run migration
+psql -U postgres -h localhost -d researchmind < prisma/migrations/0001_init/migration.sql
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Environment
+```bash
+cp .env .env.local
+# Edit .env.local — set NEXTAUTH_SECRET to a random 32-char string
+# Set GOOGLE_CLIENT_ID/SECRET and/or GITHUB_CLIENT_ID/SECRET for auth
+```
 
-## Learn More
+### 4. Run
+```bash
+npm install
+npx prisma generate
+npm run dev
+# http://localhost:3000
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Docker Compose (Full Stack)
+```bash
+docker-compose up -d
+# Ollama runs on host — app connects via OLLAMA_BASE_URL
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Environment Variables
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AI_PROVIDER` | `ollama` | `ollama`, `claude`, `openai`, `groq`, `gemini` |
+| `AI_MODEL` | `qwen2.5:14b` | Model name for selected provider |
+| `EMBEDDING_PROVIDER` | `ollama` | `ollama` or `openai` |
+| `EMBEDDING_MODEL` | `nomic-embed-text` | Embedding model |
+| `EMBEDDING_DIM` | `768` | Must match model output dimension |
+| `DATABASE_URL` | `postgresql://...` | PostgreSQL with pgvector |
+| `REDIS_URL` | `redis://localhost:6379` | For BullMQ background jobs |
+| `ANTHROPIC_API_KEY` | — | For Claude in production |
+| `NEXTAUTH_SECRET` | — | Random 32-char string (required) |
 
-## Deploy on Vercel
+## RAG Architecture
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Every AI call retrieves semantically relevant chunks before querying the model:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+User query → embed → cosine search pgvector → top-8 chunks → inject into prompt → AI → ingest response back
+```
+
+Sources: uploaded PDFs, chat history, LaTeX sections, citations, hypotheses, arXiv abstracts.
+
+## Features
+
+- **AI Research Chat** — streaming, RAG-augmented, source citations, write-to-paper
+- **LaTeX Editor** — Monaco + templates (NeurIPS/ICML/IEEE/ACM/arXiv) + live compile
+- **PDF Preview** — live iframe, auto-compiles on Cmd+S
+- **Knowledge Graph** — React Flow, RAG dedup on node creation
+- **Hypothesis Tracker** — evidence scoring via BullMQ + pgvector
+- **arXiv Feed** — semantic similarity filtering, near-duplicate alerts
+- **Citation Manager** — Semantic Scholar search, DOI/arXiv lookup, BibTeX export
+- **Corpus Analysis** — up to 20 PDFs, cross-paper RAG Q&A
+- **Contradiction Detector** — background scan via BullMQ
+- **Argument Validator** — RAG evidence checking per section
+- **Figure Generator** — NL to matplotlib + pgfplots LaTeX
+- **Novelty Score** — Semantic Scholar ANN search

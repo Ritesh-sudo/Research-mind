@@ -1,0 +1,258 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions", "driverAdapters"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id               String            @id @default(cuid())
+  name             String?
+  email            String            @unique
+  emailVerified    DateTime?
+  image            String?
+  styleProfile     Json?
+  aiProviderConfig Json?
+  createdAt        DateTime          @default(now())
+  accounts         Account[]
+  sessions         Session[]
+  projects         ResearchProject[]
+  collaborations   Collaborator[]
+}
+
+model ResearchProject {
+  id            String             @id @default(cuid())
+  userId        String
+  title         String
+  topic         String
+  template      String             @default("neurips")
+  status        String             @default("in_progress")
+  noveltyScore  Float?
+  isPublic      Boolean            @default(false)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      ResearchMessage[]
+  document      LatexDocument?
+  snapshots     DocumentSnapshot[]
+  citations     Citation[]
+  hypotheses    Hypothesis[]
+  nodes         KnowledgeNode[]
+  edges         KnowledgeEdge[]
+  papers        UploadedPaper[]
+  collaborators Collaborator[]
+  comments      ReviewComment[]
+  chunks        Chunk[]
+  diagrams      Diagram[]
+  experiments   Experiment[]
+}
+
+model ResearchMessage {
+  id         String          @id @default(cuid())
+  projectId  String
+  role       String
+  content    String
+  aiProvider String?
+  aiModel    String?
+  sources    Json?
+  timestamp  DateTime        @default(now())
+  project    ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model LatexDocument {
+  id             String          @id @default(cuid())
+  projectId      String          @unique
+  content        String          @default("")
+  compiledPdfUrl String?
+  version        Int             @default(1)
+  updatedAt      DateTime        @updatedAt
+  project        ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model DocumentSnapshot {
+  id         String          @id @default(cuid())
+  documentId String
+  content    String
+  label      String?
+  createdAt  DateTime        @default(now())
+  project    ResearchProject @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model Citation {
+  id        String          @id @default(cuid())
+  projectId String
+  bibtex    String
+  doi       String?
+  arxivId   String?
+  title     String?
+  authors   String?
+  abstract  String?
+  year      Int?
+  project   ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Hypothesis {
+  id                  String          @id @default(cuid())
+  projectId           String
+  statement           String
+  evidenceScore       Float           @default(0)
+  status              String          @default("unconfirmed")
+  supportingChunks    Json?
+  contradictingChunks Json?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  project             ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model KnowledgeNode {
+  id        String          @id @default(cuid())
+  projectId String
+  label     String
+  type      String          @default("concept")
+  summary   String?
+  x         Float           @default(0)
+  y         Float           @default(0)
+  project   ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model KnowledgeEdge {
+  id           String          @id @default(cuid())
+  projectId    String
+  sourceId     String
+  targetId     String
+  relationship String
+  project      ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model UploadedPaper {
+  id            String          @id @default(cuid())
+  projectId     String
+  filename      String
+  extractedText String
+  s3Url         String?
+  createdAt     DateTime        @default(now())
+  project       ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Collaborator {
+  id        String          @id @default(cuid())
+  projectId String
+  userId    String
+  role      String          @default("author")
+  color     String          @default("#6366f1")
+  project   ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ReviewComment {
+  id           String          @id @default(cuid())
+  projectId    String
+  authorId     String
+  selectedText String
+  comment      String
+  resolved     Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  project      ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Experiment {
+  id          String          @id @default(cuid())
+  projectId   String
+  name        String          @default("Untitled Experiment")
+  description String          @default("")
+  code        String          @default("")
+  language    String          @default("python")
+  status      String          @default("idle")
+  params      Json?
+  metrics     Json?
+  logs        String          @default("")
+  duration    Int?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  project     ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  runs        ExperimentRun[]
+
+  @@index([projectId])
+}
+
+model ExperimentRun {
+  id           String     @id @default(cuid())
+  experimentId String
+  status       String     @default("completed")
+  metrics      Json?
+  logs         String     @default("")
+  figures      Json?
+  duration     Int?
+  createdAt    DateTime   @default(now())
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@index([experimentId])
+}
+
+model Diagram {
+  id        String          @id @default(cuid())
+  projectId String
+  title     String          @default("Untitled Diagram")
+  type      String          @default("flowchart")
+  code      String
+  caption   String          @default("")
+  figLabel  String          @default("fig:diagram")
+  svgCache  String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  project   ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model Chunk {
+  id          String          @id @default(cuid())
+  projectId   String
+  sourceType  String
+  sourceId    String
+  sourceLabel String
+  chunkIndex  Int
+  text        String
+  embedding   Unsupported("vector(768)")
+  createdAt   DateTime        @default(now())
+  project     ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}

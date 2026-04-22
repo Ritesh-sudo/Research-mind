@@ -1,7 +1,9 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  output: 'standalone',
+  serverExternalPackages: ['pdf-parse', '@prisma/client', 'bullmq', 'ioredis'],
+  turbopack: {},
+}
 
-export default nextConfig;
+export default nextConfig
