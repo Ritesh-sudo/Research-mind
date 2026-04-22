@@ -22,12 +22,7 @@ docker run -d --name pgvector -e POSTGRES_PASSWORD=postgres \
 # Start Redis
 docker run -d --name redis -p 6379:6379 redis:7-alpine
 
-# Install and start Ollama
-brew install ollama && ollama serve
-
-# Pull models
-ollama pull qwen2.5:14b      # AI model (use qwen2.5:7b for 8GB RAM)
-ollama pull nomic-embed-text  # Embedding model for RAG
+#add your API key. 
 ```
 
 ### 2. Database Setup
